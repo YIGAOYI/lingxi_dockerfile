@@ -7,24 +7,27 @@
 # ==================================================================
 
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+
 ENV LANG C.UTF-8
-RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
-    PIP_INSTALL="python -m pip --no-cache-dir install --upgrade" && \
-    GIT_CLONE="git clone --depth 10" && \
 
-    rm -rf /var/lib/apt/lists/* \
+RUN rm -rf /var/lib/apt/lists/* \
            /etc/apt/sources.list.d/cuda.list \
-           /etc/apt/sources.list.d/nvidia-ml.list && \
+           /etc/apt/sources.list.d/nvidia-ml.list
 
-    apt-get update && \
+RUN  sed -i s@/archive.ubuntu.com/@/mirrors.aliyun.com/@g /etc/apt/sources.list
+RUN  apt-get clean
 
 # ==================================================================
 # tools
 # ------------------------------------------------------------------
 
+RUN rm -rf /var/lib/apt/lists/* /tmp/* ~/* && \
+    apt-get -y update && \
+    APT_INSTALL="apt-get install -y --no-install-recommends" && \
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
-        build-essential \
         apt-utils \
+        build-essential \
+        cmake \
         ca-certificates \
         wget \
         git \
@@ -32,33 +35,35 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
         libssl-dev \
         curl \
         unzip \
-        unrar \
-        && \
+        unrar
 
-    $GIT_CLONE https://github.com/Kitware/CMake ~/cmake && \
-    cd ~/cmake && \
-    ./bootstrap && \
-    make -j"$(nproc)" install && \
 
 # ==================================================================
 # python
 # ------------------------------------------------------------------
 
+RUN rm -rf /var/lib/apt/lists/* /tmp/* ~/* && \
+    apt-get install -f && \
+    apt-get -y update && \
+    APT_INSTALL="apt-get install -y --no-install-recommends" && \
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
-        software-properties-common \
-        && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
+        software-properties-common
+
+RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
         python3.6 \
         python3.6-dev \
         python3-distutils-extra \
-        && \
-    wget -O ~/get-pip.py \
-        https://bootstrap.pypa.io/get-pip.py && \
-    python3.6 ~/get-pip.py && \
-    ln -s /usr/bin/python3.6 /usr/local/bin/python3 && \
-    ln -s /usr/bin/python3.6 /usr/local/bin/python && \
+        python-pip \
+        python3-pip
+
+COPY pip.conf /etc/pip.conf
+
+
+RUN ln -s /usr/bin/python3.6 /usr/local/bin/python3
+RUN ln -s /usr/bin/python3.6 /usr/local/bin/python
+
+RUN PIP_INSTALL="python -m pip --no-cache-dir install --upgrade" && \
     $PIP_INSTALL \
         setuptools \
         && \
@@ -70,31 +75,30 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
         scikit-image>=0.14.2 \
         scikit-learn \
         matplotlib \
-        Cython \
-        && \
+        Cython
 
 # ==================================================================
 # pytorch
 # ------------------------------------------------------------------
 
-    $PIP_INSTALL \
-        future \
-        numpy \
-        protobuf \
-        enum34 \
-        pyyaml \
-        typing \
-        && \
-    $PIP_INSTALL \
-        pillow==6.2.1 torch==1.3.1 torchvision==0.4.2 -f \
-        https://download.pytorch.org/whl/cu100/torch_stable.html \
-        && \
+# RUN PIP_INSTALL="python  -m pip --default-timeout=1000 --no-cache-dir install --upgrade"
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade pillow==6.2.1
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade torch==1.3.1
+RUN python -m pip --default-timeout=10000 --no-cache-dir install  -U --upgrade torchvision==0.4.2
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade future
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade numpy
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade protobuf
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade enum34
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade pyyaml
+RUN python -m pip --default-timeout=1000 --no-cache-dir install --upgrade typing
+
+
 
 # ==================================================================
 # config & cleanup
 # ------------------------------------------------------------------
 
-    ldconfig && \
+RUN ldconfig && \
     apt-get clean && \
     apt-get autoremove && \
     rm -rf /var/lib/apt/lists/* /tmp/* ~/*
